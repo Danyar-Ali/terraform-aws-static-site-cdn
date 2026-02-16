@@ -132,6 +132,10 @@ Traditional CI/CD:
 
 Deployment runs automatically.
 
+## Working link after deployment: 
+
+```d2tpt8udf6jnro.cloudfront.net```
+
 ## Author
 
 Danyar Ali
