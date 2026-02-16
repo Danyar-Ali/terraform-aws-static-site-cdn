@@ -1,0 +1,45 @@
+name: Deploy (Terraform + S3 + CloudFront)
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Upload site to S3
+        run: |
+          BUCKET=$(terraform output -raw s3_bucket_name)
+          aws s3 sync site/ "s3://$BUCKET" --delete
+
+      - name: Invalidate CloudFront
+        run: |
+          CF_DOMAIN=$(terraform output -raw cloudfront_domain_name)
+          # Find distribution id by domain
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?DomainName=='$CF_DOMAIN'].Id | [0]" \
+            --output text)
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
